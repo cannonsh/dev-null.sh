@@ -14,6 +14,7 @@ use App\Queries\NotificationGroupsQuery;
 use App\Queries\SuggestedUsersQuery;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;
 use Inertia\Middleware;
 
@@ -65,6 +66,8 @@ final class HandleInertiaRequests extends Middleware
                     'day' => today()->toDateString(),
                 ] : null,
             ],
+            // Approximate on purpose: rounded down and cached, so it costs one count an hour.
+            'userCount' => fn (): int => Cache::remember('user-count', now()->addHour(), fn (): int => self::approximate(User::query()->count())),
             'hasUnmoderatedCommits' => fn (): bool => $isAdmin && Commit::query()->pending()->exists(),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'showsWhoToFollow' => $showsWhoToFollow,
@@ -78,5 +81,19 @@ final class HandleInertiaRequests extends Middleware
                 ))->once(),
             ] : [],
         ];
+    }
+
+    /**
+     * Round down to two significant figures, so "1,200" rather than "1,234".
+     */
+    private static function approximate(int $count): int
+    {
+        if ($count < 100) {
+            return $count;
+        }
+
+        $step = 10 ** (mb_strlen((string) $count) - 2);
+
+        return intdiv($count, $step) * $step;
     }
 }

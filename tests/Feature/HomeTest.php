@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Enums\Log;
 use App\Models\User;
+use Illuminate\Support\Facades\Cache;
 
 it('renders the trending log for guests', function (): void {
     $response = $this->get(route('home'));
@@ -39,4 +40,12 @@ it('redirects authenticated users to the log they visited last', function (): vo
         ->get(route('home'));
 
     $response->assertRedirectToRoute('log.show', Log::Trending);
+});
+
+it('shares an approximate user count, rounded down', function (): void {
+    Cache::forget('user-count');
+    User::factory()->count(123)->create();
+
+    $this->get(route('home'))
+        ->assertInertia(fn ($page) => $page->where('userCount', 120));
 });

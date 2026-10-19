@@ -18,6 +18,7 @@ declare module '@inertiajs/core' {
             hasUnmoderatedCommits: boolean;
             sidebarOpen: boolean;
             showsWhoToFollow: boolean;
+            userCount: number;
             dimsLanes: boolean;
             repliesPerPage: number;
             suggestedUsers?: SuggestedUser[];

@@ -25,7 +25,8 @@ export function AppAside({
     onShowShortcuts: () => void;
     onSearch: () => void;
 }) {
-    const { user } = usePage().props.auth;
+    const { auth, userCount } = usePage().props;
+    const { user } = auth;
     const keys = useKeyLabels();
     const [commitsCount] = useSharedState(
         commitStateKey('commits_count', user?.id ?? ''),
@@ -176,6 +177,15 @@ export function AppAside({
                         ?
                     </kbd>
                 </button>
+                {userCount >= 100 && (
+                    <p data-test="user-count">
+                        {userCount === 1 ? 'Home to' : 'Home to over'}{' '}
+                        <span className="font-mono font-medium text-foreground">
+                            {userCount.toLocaleString('en-US')}
+                        </span>{' '}
+                        developers
+                    </p>
+                )}
                 <div className="flex gap-4">
                     <Link
                         href={AboutController.show()}
