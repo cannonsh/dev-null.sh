@@ -8,6 +8,7 @@ use App\Actions\CreateCommit;
 use App\Actions\DeleteCommit;
 use App\Dto\ThreadContinuation;
 use App\Enums\CommitStatus;
+use App\Enums\Section;
 use App\Http\Requests\CreateCommitRequest;
 use App\Http\Requests\DeleteCommitRequest;
 use App\Http\Requests\ShowCommitRequest;
@@ -48,10 +49,10 @@ final readonly class CommitController
             return $threadReplies ??= $replies->paginate($commit, $currentUser, limit: $request->repliesPerPage());
         };
 
-        $preview = $currentUser instanceof User || $request->inertia() ? null : $metadata->commit(
+        $preview = $currentUser instanceof User || $request->inertia() ? null : ($commit->threadSection() instanceof Section ? $metadata->section($commit->threadSection()) : $metadata->commit(
             $commit->loadPublicPreview()->loadCount('stars')->load(['images', 'linkPreview', 'quotedCommit.user']),
             $getReplies()->items(),
-        );
+        ));
 
         return Inertia::render('commit/show', [
             'commit' => $getCommit,
@@ -63,11 +64,12 @@ final readonly class CommitController
 
     public function store(CreateCommitRequest $request, #[CurrentUser] User $user, CreateCommit $action): RedirectResponse
     {
-        $commit = $action->handle($user, $request->string('body')->value(), quotedCommit: $request->quotedCommit(), images: $request->images(), imageDescriptions: $request->imageDescriptions(), linkPreview: $request->linkPreview(), poll: $request->poll());
+        $commit = $action->handle($user, $request->string('body')->value(), quotedCommit: $request->quotedCommit(), images: $request->images(), imageDescriptions: $request->imageDescriptions(), linkPreview: $request->linkPreview(), poll: $request->poll(), section: $request->section());
 
         Inertia::flash('committed', [
             'id' => $commit->id,
             'body' => $commit->body,
+            ...($commit->section instanceof Section ? ['section' => $commit->section->value] : []),
         ]);
 
         if ($commit->status === CommitStatus::Pending) {

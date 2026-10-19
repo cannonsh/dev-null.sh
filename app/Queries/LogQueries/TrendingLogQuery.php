@@ -18,6 +18,7 @@ final readonly class TrendingLogQuery implements LogQuery
     {
         return Commit::query()
             ->visibleTo($user)
+            ->withoutSections()
             ->withoutMutedAuthorsFor($user)
             ->topLevel()
             ->withVisibleReplyCount($user)

@@ -296,7 +296,7 @@ final class User extends Authenticatable
      */
     public function loadCounts(?self $viewer = null): self
     {
-        return $this->fillCounts($this->commits()->visibleTo($viewer ?? $this)->count());
+        return $this->fillCounts($this->commits()->visibleTo($viewer ?? $this)->withoutSections()->count());
     }
 
     /**
@@ -304,7 +304,7 @@ final class User extends Authenticatable
      */
     public function loadPublicCounts(): self
     {
-        return $this->fillCounts($this->commits()->approved()->count());
+        return $this->fillCounts($this->commits()->approved()->withoutSections()->count());
     }
 
     /**
