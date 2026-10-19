@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
+use App\Enums\Log;
 use App\Enums\Section;
+use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\SuggestedCommitsQuery;
@@ -48,12 +50,17 @@ it('keeps them out of the logs of guests', function (string $log): void {
     expect(idsIn($this->get("/log/{$log}"), 'commits.data'))->toBe([$this->logged->id]);
 })->with(['latest', 'trending']);
 
-it('keeps them out of the new commits offered on a ranked log', function (): void {
+it('keeps them out of the count of new commits on the latest log', function (): void {
     $viewer = User::factory()->create();
 
     $since = Commit::factory()->create(['created_at' => now()->subHour()]);
 
-    expect(idsIn($this->actingAs($viewer)->get("/log/trending?since={$since->id}"), 'latestCommits'))->toBe([$this->logged->id]);
+    $this->actingAs($viewer)->get(route('log.show', [Log::Latest, 'since' => $since->id]), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia-Partial-Component' => 'log/show',
+        'X-Inertia-Partial-Data' => 'newCommitsCount',
+    ])->assertOk()->assertJsonPath('props.newCommitsCount', 1);
 });
 
 it('keeps them out of the profile and its counts', function (): void {
