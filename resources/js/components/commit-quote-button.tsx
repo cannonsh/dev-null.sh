@@ -226,6 +226,7 @@ function QuoteComposer({
                             <MentionTextarea
                                 ref={textareaRef}
                                 id={id}
+                                quote={commit.id}
                                 name="body"
                                 rows={1}
                                 autoFocus
