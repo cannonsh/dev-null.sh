@@ -129,3 +129,15 @@ it('leaves out commits older than seven days', function (): void {
 
     expect($commits->modelKeys())->toBe([$recent->id]);
 });
+
+it('puts the commit the viewer just made first, even without engagement', function (): void {
+    $viewer = User::factory()->create();
+
+    $other = Commit::factory()->create();
+    $own = Commit::factory()->for($viewer)->create(['created_at' => now()->subMinutes(5)]);
+    $ownOlder = Commit::factory()->for($viewer)->create(['created_at' => now()->subMinutes(30)]);
+
+    $commits = resolve(TrendingLogQuery::class)->builder($viewer)->get();
+
+    expect($commits->modelKeys())->toBe([$own->id, $other->id, $ownOlder->id]);
+});
