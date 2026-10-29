@@ -6,6 +6,7 @@ use App\Actions\UpdateCommitHotScores;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\LogQueries\TrendingLogQuery;
+use Illuminate\Pagination\CursorPaginator;
 
 it('includes commits of everyone', function (): void {
     $older = Commit::factory()->create(['created_at' => now()->subMinute()]);
@@ -140,4 +141,29 @@ it('puts the commit the viewer just made first, even without engagement', functi
     $commits = resolve(TrendingLogQuery::class)->builder($viewer)->get();
 
     expect($commits->modelKeys())->toBe([$own->id, $other->id, $ownOlder->id]);
+});
+
+it('keeps the pin of the commit the viewer just made while the log scrolls', function (): void {
+    config(['trending.temperature' => 0.0]);
+    $viewer = User::factory()->create();
+    $own = Commit::factory()->for($viewer)->create(['created_at' => now()->subMinutes(9)]);
+    Commit::factory()->count(24)->sequence(
+        fn ($sequence): array => ['created_at' => now()->subSeconds($sequence->index)],
+    )->create();
+    Commit::query()->whereKeyNot($own->id)->increment('hot_score', 5);
+
+    $first = resolve(TrendingLogQuery::class)->builder($viewer)->cursorPaginate(20);
+
+    $this->travel(2)->minutes();
+    CursorPaginator::currentCursorResolver(fn () => $first->nextCursor());
+
+    $second = resolve(TrendingLogQuery::class)->builder($viewer)->cursorPaginate(20);
+
+    CursorPaginator::currentCursorResolver(fn () => null);
+
+    $ids = [...$first->getCollection()->modelKeys(), ...$second->getCollection()->modelKeys()];
+
+    expect($ids[0])->toBe($own->id)
+        ->and($ids)->toHaveCount(25)
+        ->and(array_unique($ids))->toHaveCount(25);
 });

@@ -26,34 +26,38 @@ final readonly class TrendingLogQuery implements LogQuery
      *
      * The seed of the draw is the first column the log is ordered by. Every commit of a draw shares it, so it does not
      * change the order, but it puts the seed in the cursor: the pages that follow, on the web and over the API, read it
-     * back and keep the same draw, so they do not overlap.
+     * back and keep the same draw, so they do not overlap. The time from which the viewer's own commits are pinned is
+     * kept the same way, so a commit that ages out of the pin while the log scrolls does not move back into a page.
      */
     public function builder(?User $user): CommitBuilder
     {
-        $seed = $this->seed();
+        $seed = $this->cursorInteger('trending_seed') ?? random_int(0, PHP_INT_MAX);
+        $pinnedSince = $this->cursorInteger('trending_pinned_since') ?? $this->theAlgorithm->pinnedSince();
 
         $draw = $this->theAlgorithm
-            ->draw($user, $seed, Config::float('trending.temperature'))
-            ->selectRaw('?::bigint as trending_seed', [$seed]);
+            ->draw($user, $seed, Config::float('trending.temperature'), $pinnedSince)
+            ->selectRaw('?::bigint as trending_seed', [$seed])
+            ->selectRaw('?::bigint as trending_pinned_since', [$pinnedSince]);
 
         return Commit::query()
             ->joinSub($draw, 'draw', 'draw.drawn_id', '=', 'commits.id')
             ->withVisibleReplyCount($user)
             ->withReplyPreviews($user)
             ->withCardDataFor($user)
-            ->addSelect(['draw.trending_seed', 'draw.trending_score'])
+            ->addSelect(['draw.trending_seed', 'draw.trending_pinned_since', 'draw.trending_score'])
             ->orderByDesc('trending_seed')
+            ->orderByDesc('trending_pinned_since')
             ->orderByDesc('trending_score')
             ->orderByDesc('id');
     }
 
     /**
-     * The seed of the cursor being followed, or a new one when the log is opened or refreshed.
+     * A value of the draw that the cursor being followed carries, or null when the log is opened or refreshed.
      */
-    private function seed(): int
+    private function cursorInteger(string $column): ?int
     {
-        $seed = CursorPaginator::resolveCurrentCursor()?->toArray()['trending_seed'] ?? null;
+        $value = CursorPaginator::resolveCurrentCursor()?->toArray()[$column] ?? null;
 
-        return is_int($seed) ? $seed : random_int(0, PHP_INT_MAX);
+        return is_int($value) ? $value : null;
     }
 }
