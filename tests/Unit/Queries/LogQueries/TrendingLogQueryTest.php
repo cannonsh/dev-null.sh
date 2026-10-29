@@ -6,6 +6,7 @@ use App\Actions\UpdateCommitHotScores;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\LogQueries\TrendingLogQuery;
+use Illuminate\Pagination\Cursor;
 use Illuminate\Pagination\CursorPaginator;
 
 it('includes commits of everyone', function (): void {
@@ -166,4 +167,25 @@ it('keeps the pin of the commit the viewer just made while the log scrolls', fun
     expect($ids[0])->toBe($own->id)
         ->and($ids)->toHaveCount(25)
         ->and(array_unique($ids))->toHaveCount(25);
+});
+
+it('follows a cursor issued before the pin was kept in it', function (): void {
+    config(['trending.temperature' => 0.0]);
+    $viewer = User::factory()->create();
+    $commits = Commit::factory()->count(3)->sequence(
+        fn ($sequence): array => ['created_at' => now()->subSeconds($sequence->index)],
+    )->create();
+
+    $page = resolve(TrendingLogQuery::class)->builder($viewer)->cursorPaginate(1);
+    $parameters = $page->nextCursor()->toArray();
+    unset($parameters['trending_pinned_since'], $parameters['_pointsToNextItems']);
+
+    CursorPaginator::currentCursorResolver(fn () => new Cursor($parameters));
+
+    $next = resolve(TrendingLogQuery::class)->builder($viewer)->cursorPaginate(2);
+
+    CursorPaginator::currentCursorResolver(fn () => null);
+
+    expect($next->getCollection()->modelKeys())->toBe([$commits[1]->id, $commits[2]->id])
+        ->and($next->nextCursor()?->toArray())->not->toHaveKey('trending_pinned_since');
 });
